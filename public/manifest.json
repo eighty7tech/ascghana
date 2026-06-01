@@ -1,0 +1,55 @@
+{
+  "name": "Arsenal Supporters Club Ghana",
+  "short_name": "ASC Ghana",
+  "description": "Official Arsenal Supporters Club Ghana — Members Portal",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0C0B12",
+  "theme_color": "#EF0107",
+  "orientation": "portrait-primary",
+  "categories": ["sports", "social"],
+  "icons": [
+    {
+      "src": "/images/logo/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/logo/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/logo/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/images/screenshots/home.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "ASC Ghana Homepage"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My Dashboard",
+      "short_name": "Dashboard",
+      "description": "Access your member dashboard",
+      "url": "/members/dashboard",
+      "icons": [{ "src": "/images/logo/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Community",
+      "short_name": "Community",
+      "description": "Join the community chat",
+      "url": "/members/community",
+      "icons": [{ "src": "/images/logo/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

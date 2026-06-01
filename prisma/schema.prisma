@@ -1,0 +1,735 @@
+// ASC Ghana v3.0.0 — Prisma Schema
+// MySQL 8.0+ | Extends existing auth_sessions / admin_sessions raw tables
+// Run: npx prisma migrate dev --name v3_upgrade
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ──────────────────────────────────────────────────────────────────────
+
+enum MemberStatus {
+  Active
+  Inactive
+  Frozen
+  Expired
+  PendingRenewal @map("Pending Renewal")
+  Suspended
+}
+
+enum MemberTier {
+  Bronze
+  Silver
+  Gold
+  Platinum
+  Abusua
+}
+
+enum ApplicationStatus {
+  Pending
+  UnderReview @map("Under Review")
+  Approved
+  Rejected
+  Waitlisted
+}
+
+enum PaymentStatus {
+  Pending
+  Paid
+  Failed
+  Refunded
+  Cancelled
+}
+
+enum PaymentMethod {
+  MobileMoney @map("Mobile Money")
+  BankTransfer @map("Bank Transfer")
+  Cash
+  Card
+  Paystack
+}
+
+enum EventStatus {
+  Draft
+  Published
+  Cancelled
+  Completed
+}
+
+enum NewsStatus {
+  Draft
+  Published
+  Archived
+}
+
+enum DonationStatus {
+  Active
+  Completed
+  Paused
+  Cancelled
+}
+
+enum VolunteerStatus {
+  Active
+  Inactive
+  Pending
+}
+
+enum NotificationType {
+  Info
+  Success
+  Warning
+  Danger
+  Event
+  Ticket
+  Member
+  Payment
+}
+
+enum AuditAction {
+  Create
+  Update
+  Delete
+  Login
+  Logout
+  Approve
+  Reject
+  Export
+}
+
+// ── Member ─────────────────────────────────────────────────────────────────────
+
+model Member {
+  id               Int          @id @default(autoincrement())
+  membershipNumber String       @unique @map("membership_number") @db.VarChar(30)
+  firstName        String       @map("first_name") @db.VarChar(100)
+  lastName         String       @map("last_name") @db.VarChar(100)
+  email            String       @unique @db.VarChar(200)
+  phone            String?      @db.VarChar(30)
+  whatsapp         String?      @db.VarChar(30)
+  password         String?      @db.VarChar(255)
+  tier             MemberTier   @default(Bronze)
+  branch           String       @default("Accra") @db.VarChar(60)
+  status           MemberStatus @default(Active)
+  role             String       @default("member") @db.VarChar(40)
+  photo            String?      @db.VarChar(500)
+  address          String?      @db.Text
+  city             String?      @db.VarChar(80)
+  region           String?      @db.VarChar(80)
+  dateOfBirth      DateTime?    @map("date_of_birth") @db.Date
+  gender           String?      @db.VarChar(20)
+  occupation       String?      @db.VarChar(100)
+  nationality      String?      @default("Ghanaian") @db.VarChar(60)
+  ghanaCardNumber  String?      @map("ghana_card_number") @db.VarChar(50)
+  joined           String?      @db.VarChar(20)
+  renewalDue       String?      @map("renewal_due") @db.VarChar(20)
+  twoFactorEnabled Boolean      @default(false) @map("two_factor_enabled")
+  lastLogin        DateTime?    @map("last_login")
+  loginAttempts    Int          @default(0) @map("login_attempts")
+  lockedUntil      DateTime?    @map("locked_until")
+  deletedAt        DateTime?    @map("deleted_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  applications     MembershipApplication[]
+  renewals         MembershipRenewal[]
+  eventRegistrations EventRegistration[]
+  payments         Payment[]
+  donations        DonationPledge[]
+  notifications    MemberNotification[]
+  auditLogs        AuditLog[]   @relation("AuditMember")
+  volunteerAssignments VolunteerAssignment[]
+
+  @@map("members")
+  @@index([status])
+  @@index([tier])
+  @@index([branch])
+  @@index([email])
+}
+
+// ── MembershipType ─────────────────────────────────────────────────────────────
+
+model MembershipType {
+  id           Int      @id @default(autoincrement())
+  name         String   @unique @db.VarChar(60)
+  slug         String   @unique @db.VarChar(60)
+  description  String?  @db.Text
+  price        Decimal  @db.Decimal(10, 2)
+  renewalPrice Decimal  @map("renewal_price") @db.Decimal(10, 2)
+  benefits     Json
+  color        String   @default("#CD7F32") @db.VarChar(20)
+  icon         String   @default("fa-solid fa-medal") @db.VarChar(80)
+  isPopular    Boolean  @default(false) @map("is_popular")
+  isFamily     Boolean  @default(false) @map("is_family")
+  familySize   Int?     @map("family_size")
+  sortOrder    Int      @default(0) @map("sort_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  applications MembershipApplication[]
+  renewals     MembershipRenewal[]
+
+  @@map("membership_types")
+}
+
+// ── MembershipApplication ──────────────────────────────────────────────────────
+
+model MembershipApplication {
+  id               Int               @id @default(autoincrement())
+  memberId         Int?              @map("member_id")
+  membershipTypeId Int               @map("membership_type_id")
+  firstName        String            @map("first_name") @db.VarChar(100)
+  lastName         String            @map("last_name") @db.VarChar(100)
+  email            String            @db.VarChar(200)
+  phone            String?           @db.VarChar(30)
+  branch           String?           @db.VarChar(60)
+  status           ApplicationStatus @default(Pending)
+  reviewedBy       String?           @map("reviewed_by") @db.VarChar(100)
+  reviewNote       String?           @map("review_note") @db.Text
+  reviewedAt       DateTime?         @map("reviewed_at")
+  paymentStatus    PaymentStatus     @default(Pending) @map("payment_status")
+  paymentRef       String?           @map("payment_ref") @db.VarChar(100)
+  submittedAt      DateTime          @default(now()) @map("submitted_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  member           Member?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  membershipType   MembershipType    @relation(fields: [membershipTypeId], references: [id])
+
+  @@map("membership_applications")
+  @@index([status])
+  @@index([email])
+}
+
+// ── MembershipRenewal ──────────────────────────────────────────────────────────
+
+model MembershipRenewal {
+  id               Int            @id @default(autoincrement())
+  memberId         Int            @map("member_id")
+  membershipTypeId Int            @map("membership_type_id")
+  membershipNumber String         @map("membership_number") @db.VarChar(30)
+  oldTier          String?        @map("old_tier") @db.VarChar(20)
+  newTier          String         @map("new_tier") @db.VarChar(20)
+  amount           Decimal        @db.Decimal(10, 2)
+  currency         String         @default("GHS") @db.Char(3)
+  paymentMethod    PaymentMethod? @map("payment_method")
+  paymentRef       String?        @map("payment_ref") @db.VarChar(100)
+  paymentStatus    PaymentStatus  @default(Pending) @map("payment_status")
+  expiresAt        DateTime?      @map("expires_at") @db.Date
+  notes            String?        @db.Text
+  renewedAt        DateTime       @default(now()) @map("renewed_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  member           Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  membershipType   MembershipType @relation(fields: [membershipTypeId], references: [id])
+
+  @@map("membership_renewals")
+  @@index([memberId])
+  @@index([paymentStatus])
+}
+
+// ── SupportersGroup ────────────────────────────────────────────────────────────
+
+model SupportersGroup {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(200)
+  slug        String   @unique @db.VarChar(200)
+  region      String   @db.VarChar(80)
+  city        String?  @db.VarChar(80)
+  description String?  @db.Text
+  logoUrl     String?  @map("logo_url") @db.VarChar(500)
+  contactName String?  @map("contact_name") @db.VarChar(200)
+  contactPhone String? @map("contact_phone") @db.VarChar(30)
+  contactEmail String? @map("contact_email") @db.VarChar(200)
+  memberCount Int      @default(0) @map("member_count")
+  isActive    Boolean  @default(true) @map("is_active")
+  foundedYear String?  @map("founded_year") @db.VarChar(10)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("supporters_groups")
+}
+
+// ── ExecutivePosition ──────────────────────────────────────────────────────────
+
+model ExecutivePosition {
+  id          Int      @id @default(autoincrement())
+  title       String   @unique @db.VarChar(200)
+  description String?  @db.Text
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  executives  ExecutiveCommittee[]
+
+  @@map("executive_positions")
+}
+
+// ── ExecutiveCommittee ─────────────────────────────────────────────────────────
+
+model ExecutiveCommittee {
+  id          Int               @id @default(autoincrement())
+  memberId    Int?              @map("member_id")
+  positionId  Int               @map("position_id")
+  name        String            @db.VarChar(200)
+  photo       String?           @db.VarChar(500)
+  bio         String?           @db.Text
+  email       String?           @db.VarChar(200)
+  phone       String?           @db.VarChar(30)
+  facebook    String?           @db.VarChar(300)
+  instagram   String?           @db.VarChar(300)
+  twitter     String?           @db.VarChar(300)
+  termStart   String?           @map("term_start") @db.VarChar(20)
+  termEnd     String?           @map("term_end") @db.VarChar(20)
+  isActive    Boolean           @default(true) @map("is_active")
+  sortOrder   Int               @default(0) @map("sort_order")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  position    ExecutivePosition @relation(fields: [positionId], references: [id])
+
+  @@map("executive_committee")
+  @@index([positionId])
+}
+
+// ── Event ──────────────────────────────────────────────────────────────────────
+
+model Event {
+  id                Int         @id @default(autoincrement())
+  title             String      @db.VarChar(255)
+  slug              String      @unique @db.VarChar(255)
+  description       String?     @db.Text
+  shortDescription  String?     @map("short_description") @db.VarChar(500)
+  category          String      @default("Watch Party") @db.VarChar(60)
+  date              DateTime    @db.Date
+  time              DateTime?   @db.Time(0)
+  endTime           DateTime?   @map("end_time") @db.Time(0)
+  venue             String?     @db.VarChar(255)
+  address           String?     @db.Text
+  image             String?     @db.VarChar(500)
+  capacity          Int         @default(0)
+  booked            Int         @default(0)
+  status            EventStatus @default(Draft)
+  isFree            Boolean     @default(true) @map("is_free")
+  memberPrice       Decimal?    @map("member_price") @db.Decimal(10, 2)
+  nonMemberPrice    Decimal?    @map("non_member_price") @db.Decimal(10, 2)
+  memberDiscount    Boolean     @default(true) @map("member_discount")
+  memberDiscountPct Int         @default(10) @map("member_discount_pct")
+  featured          Boolean     @default(false)
+  requiresBooking   Boolean     @default(true) @map("requires_booking")
+  tags              String?     @db.VarChar(500)
+  createdBy         String?     @map("created_by") @db.VarChar(100)
+  deletedAt         DateTime?   @map("deleted_at")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  registrations     EventRegistration[]
+
+  @@map("events")
+  @@index([status])
+  @@index([date])
+  @@index([category])
+}
+
+// ── EventRegistration ──────────────────────────────────────────────────────────
+
+model EventRegistration {
+  id               String        @id @db.VarChar(40)
+  eventId          Int           @map("event_id")
+  memberId         Int?          @map("member_id")
+  memberName       String        @map("member_name") @db.VarChar(200)
+  membershipNumber String?       @map("membership_number") @db.VarChar(30)
+  email            String        @db.VarChar(200)
+  phone            String?       @db.VarChar(30)
+  qty              Int           @default(1)
+  totalPrice       Decimal       @default(0) @map("total_price") @db.Decimal(10, 2)
+  paymentStatus    PaymentStatus @default(Pending) @map("payment_status")
+  paymentRef       String?       @map("payment_ref") @db.VarChar(100)
+  status           String        @default("Pending") @db.VarChar(30)
+  checkedInAt      DateTime?     @map("checked_in_at")
+  bookedAt         DateTime      @default(now()) @map("booked_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  event            Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member           Member?       @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@map("event_registrations")
+  @@index([eventId])
+  @@index([memberId])
+  @@index([status])
+}
+
+// ── MatchViewing ───────────────────────────────────────────────────────────────
+
+model MatchViewing {
+  id           Int      @id @default(autoincrement())
+  matchTitle   String   @map("match_title") @db.VarChar(255)
+  competition  String?  @db.VarChar(100)
+  matchDate    DateTime @map("match_date")
+  kickoffTime  String?  @map("kickoff_time") @db.VarChar(10)
+  venue        String   @db.VarChar(255)
+  address      String?  @db.Text
+  capacity     Int      @default(0)
+  rsvpCount    Int      @default(0) @map("rsvp_count")
+  isFree       Boolean  @default(true) @map("is_free")
+  entryFee     Decimal? @map("entry_fee") @db.Decimal(10, 2)
+  image        String?  @db.VarChar(500)
+  description  String?  @db.Text
+  status       String   @default("Upcoming") @db.VarChar(30)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("match_viewings")
+  @@index([matchDate])
+  @@index([status])
+}
+
+// ── Payment ────────────────────────────────────────────────────────────────────
+
+model Payment {
+  id            String        @id @db.VarChar(40)
+  memberId      Int?          @map("member_id")
+  memberName    String        @map("member_name") @db.VarChar(200)
+  email         String        @db.VarChar(200)
+  amount        Decimal       @db.Decimal(10, 2)
+  currency      String        @default("GHS") @db.Char(3)
+  method        PaymentMethod
+  reference     String?       @unique @db.VarChar(100)
+  gateway       String?       @db.VarChar(40)
+  gatewayRef    String?       @map("gateway_ref") @db.VarChar(200)
+  status        PaymentStatus @default(Pending)
+  purpose       String        @db.VarChar(100)
+  description   String?       @db.Text
+  metadata      Json?
+  paidAt        DateTime?     @map("paid_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  member        Member?       @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@map("payments")
+  @@index([memberId])
+  @@index([status])
+  @@index([purpose])
+  @@index([createdAt(sort: Desc)])
+}
+
+// ── Donation ───────────────────────────────────────────────────────────────────
+
+model Donation {
+  id          Int            @id @default(autoincrement())
+  title       String         @db.VarChar(255)
+  description String?        @db.Text
+  goal        Decimal        @db.Decimal(12, 2)
+  raised      Decimal        @default(0) @db.Decimal(12, 2)
+  currency    String         @default("GHS") @db.Char(3)
+  image       String?        @db.VarChar(500)
+  status      DonationStatus @default(Active)
+  endDate     DateTime?      @map("end_date") @db.Date
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  pledges     DonationPledge[]
+
+  @@map("donations")
+  @@index([status])
+}
+
+model DonationPledge {
+  id         Int           @id @default(autoincrement())
+  donationId Int           @map("donation_id")
+  memberId   Int?          @map("member_id")
+  name       String        @db.VarChar(200)
+  email      String?       @db.VarChar(200)
+  amount     Decimal       @db.Decimal(10, 2)
+  currency   String        @default("GHS") @db.Char(3)
+  message    String?       @db.Text
+  anonymous  Boolean       @default(false)
+  paymentRef String?       @map("payment_ref") @db.VarChar(100)
+  status     PaymentStatus @default(Pending)
+  pledgedAt  DateTime      @default(now()) @map("pledged_at")
+
+  donation   Donation      @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  member     Member?       @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@map("donation_pledges")
+  @@index([donationId])
+  @@index([status])
+}
+
+// ── Sponsor / Partner ──────────────────────────────────────────────────────────
+
+model Sponsor {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(200)
+  logoUrl     String?  @map("logo_url") @db.VarChar(500)
+  website     String?  @db.VarChar(500)
+  tier        String   @default("partner") @db.VarChar(20)
+  description String?  @db.Text
+  active      Boolean  @default(true)
+  featured    Boolean  @default(false)
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("sponsors")
+}
+
+// ── NewsArticle ────────────────────────────────────────────────────────────────
+
+model NewsArticle {
+  id          Int        @id @default(autoincrement())
+  title       String     @db.VarChar(255)
+  slug        String     @unique @db.VarChar(255)
+  excerpt     String?    @db.Text
+  content     String?    @db.LongText
+  category    String?    @db.VarChar(60)
+  author      String?    @db.VarChar(100)
+  image       String?    @db.VarChar(500)
+  status      NewsStatus @default(Draft)
+  featured    Boolean    @default(false)
+  views       Int        @default(0)
+  tags        String?    @db.VarChar(500)
+  metaTitle   String?    @map("meta_title") @db.VarChar(255)
+  metaDesc    String?    @map("meta_desc") @db.VarChar(500)
+  publishedAt DateTime?  @map("published_at")
+  deletedAt   DateTime?  @map("deleted_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@map("news_articles")
+  @@index([status])
+  @@index([category])
+  @@index([slug])
+}
+
+// ── GalleryAlbum / GalleryImage ────────────────────────────────────────────────
+
+model GalleryAlbum {
+  id          Int            @id @default(autoincrement())
+  name        String         @db.VarChar(200)
+  slug        String         @unique @db.VarChar(200)
+  description String?        @db.Text
+  category    String?        @db.VarChar(60)
+  coverUrl    String?        @map("cover_url") @db.VarChar(500)
+  coverColor  String         @default("#EF0107") @map("cover_color") @db.VarChar(20)
+  isPublic    Boolean        @default(true) @map("is_public")
+  sortOrder   Int            @default(0) @map("sort_order")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  images      GalleryImage[]
+
+  @@map("gallery_albums")
+}
+
+model GalleryImage {
+  id        Int          @id @default(autoincrement())
+  albumId   Int          @map("album_id")
+  url       String       @db.VarChar(500)
+  filename  String?      @db.VarChar(255)
+  title     String?      @db.VarChar(200)
+  caption   String?      @db.Text
+  sortOrder Int          @default(0) @map("sort_order")
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  album     GalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+  @@map("gallery_images")
+  @@index([albumId])
+}
+
+// ── CommunityProject / Volunteer ───────────────────────────────────────────────
+
+model CommunityProject {
+  id          Int      @id @default(autoincrement())
+  title       String   @db.VarChar(255)
+  slug        String   @unique @db.VarChar(255)
+  description String?  @db.Text
+  image       String?  @db.VarChar(500)
+  location    String?  @db.VarChar(200)
+  startDate   DateTime? @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  status      String   @default("Active") @db.VarChar(30)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  volunteers  VolunteerAssignment[]
+
+  @@map("community_projects")
+}
+
+model Volunteer {
+  id          Int             @id @default(autoincrement())
+  memberId    Int?            @map("member_id")
+  name        String          @db.VarChar(200)
+  email       String          @db.VarChar(200)
+  phone       String?         @db.VarChar(30)
+  skills      String?         @db.Text
+  availability String?        @db.VarChar(200)
+  status      VolunteerStatus @default(Pending)
+  joinedAt    DateTime        @default(now()) @map("joined_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  assignments VolunteerAssignment[]
+
+  @@map("volunteers")
+  @@index([status])
+}
+
+model VolunteerAssignment {
+  id          Int              @id @default(autoincrement())
+  volunteerId Int              @map("volunteer_id")
+  projectId   Int              @map("project_id")
+  memberId    Int?             @map("member_id")
+  role        String?          @db.VarChar(100)
+  hoursLogged Decimal          @default(0) @map("hours_logged") @db.Decimal(6, 2)
+  assignedAt  DateTime         @default(now()) @map("assigned_at")
+
+  volunteer   Volunteer        @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+  project     CommunityProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  member      Member?          @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@map("volunteer_assignments")
+  @@index([volunteerId])
+  @@index([projectId])
+}
+
+// ── Notification / Announcement ────────────────────────────────────────────────
+
+model MemberNotification {
+  id        Int              @id @default(autoincrement())
+  memberId  Int              @map("member_id")
+  title     String           @db.VarChar(200)
+  message   String           @db.Text
+  type      NotificationType @default(Info)
+  icon      String           @default("fa-solid fa-bell") @db.VarChar(80)
+  category  String           @default("system") @db.VarChar(40)
+  isRead    Boolean          @default(false) @map("is_read")
+  linkHref  String?          @map("link_href") @db.VarChar(500)
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  member    Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("member_notifications")
+  @@index([memberId])
+  @@index([isRead])
+  @@index([createdAt(sort: Desc)])
+}
+
+model Announcement {
+  id              Int      @id @default(autoincrement())
+  title           String   @db.VarChar(255)
+  body            String   @db.Text
+  type            String   @default("info") @db.VarChar(20)
+  target          String   @default("all") @db.VarChar(40)
+  isActive        Boolean  @default(true) @map("is_active")
+  isPinned        Boolean  @default(false) @map("is_pinned")
+  showOnDashboard Boolean  @default(true) @map("show_on_dashboard")
+  linkUrl         String?  @map("link_url") @db.VarChar(500)
+  linkLabel       String?  @map("link_label") @db.VarChar(100)
+  imageUrl        String?  @map("image_url") @db.VarChar(500)
+  expiresAt       DateTime? @map("expires_at")
+  createdBy       String?  @map("created_by") @db.VarChar(100)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("announcements")
+  @@index([isActive])
+  @@index([type])
+}
+
+// ── AuditLog ───────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         BigInt      @id @default(autoincrement())
+  actorId    Int?        @map("actor_id")
+  actorName  String?     @map("actor_name") @db.VarChar(200)
+  actorType  String      @default("admin") @map("actor_type") @db.VarChar(20)
+  action     AuditAction
+  entity     String      @db.VarChar(60)
+  entityId   String?     @map("entity_id") @db.VarChar(40)
+  detail     String?     @db.Text
+  ipAddress  String?     @map("ip_address") @db.VarChar(45)
+  userAgent  String?     @map("user_agent") @db.VarChar(300)
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  member     Member?     @relation("AuditMember", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+  @@index([actorId])
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt(sort: Desc)])
+}
+
+// ── Settings ───────────────────────────────────────────────────────────────────
+
+model Setting {
+  id           Int      @id @default(autoincrement())
+  section      String   @db.VarChar(60)
+  settingKey   String   @map("setting_key") @db.VarChar(100)
+  settingValue String?  @map("setting_value") @db.LongText
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([section, settingKey])
+  @@map("settings_v3")
+  @@index([section])
+}
+
+// ── ContactSubmission ──────────────────────────────────────────────────────────
+
+model ContactSubmission {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(200)
+  email     String   @db.VarChar(200)
+  phone     String?  @db.VarChar(30)
+  subject   String?  @db.VarChar(255)
+  message   String   @db.Text
+  isRead    Boolean  @default(false) @map("is_read")
+  replied   Boolean  @default(false)
+  replyNote String?  @map("reply_note") @db.Text
+  source    String   @default("contact_form") @db.VarChar(60)
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("contact_submissions")
+  @@index([isRead])
+  @@index([createdAt(sort: Desc)])
+}
+
+// ── NewsletterSubscriber ───────────────────────────────────────────────────────
+
+model NewsletterSubscriber {
+  id             Int      @id @default(autoincrement())
+  email          String   @unique @db.VarChar(200)
+  name           String?  @db.VarChar(200)
+  memberId       Int?     @map("member_id")
+  status         String   @default("Active") @db.VarChar(20)
+  source         String   @default("website") @db.VarChar(60)
+  sourcePage     String?  @map("source_page") @db.VarChar(100)
+  confirmed      Boolean  @default(false)
+  subscribedAt   DateTime @default(now()) @map("subscribed_at")
+  unsubscribedAt DateTime? @map("unsubscribed_at")
+
+  @@map("newsletter_subscribers")
+  @@index([status])
+  @@index([email])
+}
+
+// ── AppState (existing key-value store — keep for backward compat) ─────────────
+
+model AppState {
+  key       String   @id @db.VarChar(120)
+  value     String   @db.LongText
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("app_state")
+}

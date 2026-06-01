@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+.next/
+out/
+dist/
+
+# Environment (NEVER commit secrets)
+.env
+.env.local
+.env.*.local
+.env.production
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+*.log
+
+# Testing
+coverage/
+.nyc_output
+
+# Database (keep schema, ignore dumps)
+/database/*.sql.gz
+/database/backups/
+/database/dumps/
+
+# Large media (upload to CDN instead)
+/public/images/members/
+/public/images/uploads/
+
+# Keep the folder structure
+!/public/images/members/.gitkeep
+!/public/images/uploads/.gitkeep
+
+/src/generated/prisma
